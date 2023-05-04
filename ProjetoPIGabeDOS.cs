@@ -6,25 +6,24 @@ internal class ProjetoPIGabeDOS
     //Disciplina: Processamento de Imagens
     //Turma: 01
 
-    static (bool fixImagePixels, bool debugMode, string? path) handleParams(string[] command_line_params)
+    static (bool debugMode, string? path) handleParams(string[] commandLineParams)
     {
-        (bool fixImagePixels, bool debugMode, string? path) retorno = (false, false, null);
+        (bool debugMode, string? path) retorno = (false, null);
 
-        List<string> commandline_params = new List<string>();
-        foreach (var arg in command_line_params) commandline_params.Add(arg);
+        List<string> executionParams = new List<string>();
+        foreach (var arg in commandLineParams) executionParams.Add(arg);
 
-        if (commandline_params.IndexOf("-fixImagePixels") != -1) retorno.fixImagePixels = true;
-        if (commandline_params.IndexOf("-debugMode") != -1) retorno.debugMode = true;
-        if (commandline_params.IndexOf("-path") != -1) retorno.path = commandline_params[commandline_params.IndexOf("-path") + 1];
+        if (executionParams.IndexOf("-debugMode") != -1) retorno.debugMode = true;
+        if (executionParams.IndexOf("-path") != -1) retorno.path = executionParams[executionParams.IndexOf("-path") + 1];
         return retorno;
     }
 
     static void Main(string[] args)
     {
-        (bool fixImagePixels, bool debugMode, string? path) ret = handleParams(args);
-        ImageLib ir = new ImageLib(debugMode: ret.debugMode, fixImagePixels: ret.fixImagePixels);
+        (bool debugMode, string? path) ret = handleParams(args);
+        ImageLib ir = new ImageLib(debugMode: ret.debugMode);
         PBMImage? image = ir.ReadImg(ret.path);
-        if (image != null) ir.CountObjectsAndHoles(image);
+        if (image != null) ir.GenericStuffSolution(image);
     }
 }
 
@@ -32,14 +31,12 @@ class ImageLib
 {
     #region Attributes
     private bool _debugMode = false;
-    private bool _fixImagePixels = false;
     #endregion
 
     #region Methods
-    public ImageLib(bool debugMode = false, bool fixImagePixels = false)
+    public ImageLib(bool debugMode = false)
     {
         _debugMode = debugMode;
-        _fixImagePixels = fixImagePixels;
     }
 
     public PBMImage? ReadImg(String? path = null) // Efetua a leitura de uma imagem
@@ -48,40 +45,41 @@ class ImageLib
         {
             Console.WriteLine("Informe o caminho da imagem (com a extensão .pbm no final):");
             path = Console.ReadLine();
-        };
+        }
+
         if (!path.Contains(".pbm")) path += (".pbm");
 
         if (File.Exists(path))
         {
-            int header_lines_count = 0;
+            int headerLinesCount = 0;
             List<string> lines = new List<string>();
-            bool is_single_pixel_row = false;
-            (int X, int Y) image_size_xy = (0, 0);
-            String? current_line;
+            bool isSinglePixelRow = false;
+            (int X, int Y) imageSizeXY = (0, 0);
+            String? currentLine;
             StreamReader sr = new StreamReader(path);
 
-            while ((current_line = sr.ReadLine()) != null) // Adiciona as linhas da imagem em uma lista
+            while ((currentLine = sr.ReadLine()) != null) // Adiciona as linhas da imagem em uma lista
             {
-                if (header_lines_count < 2) // Declaração da imagem e comentário são dispensáveis
+                if (headerLinesCount < 2) // Declaração da imagem e comentário são dispensáveis
                 {
-                    header_lines_count++;
+                    headerLinesCount++;
                     continue;
                 }
-                if (header_lines_count == 2) // Faz a leitura e armazena o tamanho da imagem
+                if (headerLinesCount == 2) // Faz a leitura e armazena o tamanho da imagem
                 {
-                    String[] size = current_line.Split(' ');
-                    image_size_xy = (int.Parse(size[0]), int.Parse(size[1]));
-                    header_lines_count++;
+                    String[] size = currentLine.Split(' ');
+                    imageSizeXY = (int.Parse(size[0]), int.Parse(size[1]));
+                    headerLinesCount++;
                 }
                 else // Adiciona os pixels na lista
                 {
                     // Flag que identifica se o arquivo da imagem está distribuindo um pixel por linha
-                    if (current_line.Trim().Length == 1) is_single_pixel_row = true;
-                    lines.Add(current_line);
+                    if (currentLine.Trim().Length == 1) isSinglePixelRow = true;
+                    lines.Add(currentLine);
                 }
             }
 
-            if (!is_single_pixel_row) // Se não for um pixel por linha
+            if (!isSinglePixelRow) // Se não for um pixel por linha
             {
                 if (lines[0].Split(' ').Length > 1) // Caso os pixels estejam separados por um ' '
                 {
@@ -104,21 +102,20 @@ class ImageLib
 
             // Cria uma matriz com os pixels lidos
             List<List<byte>> matrix = new List<List<byte>>();
-            int pixels_count = 0;
-            for (int i = 0; i < image_size_xy.X; i++)
+            int pixelsCount = 0;
+            for (int i = 0; i < imageSizeXY.X; i++)
             {
                 List<byte> row = new List<byte>();
-                for (int j = 0; j < image_size_xy.Y; j++)
+                for (int j = 0; j < imageSizeXY.Y; j++)
                 {
-                    row.Add(byte.Parse(lines[pixels_count]));
-                    pixels_count++;
+                    row.Add(byte.Parse(lines[pixelsCount]));
+                    pixelsCount++;
                 }
                 matrix.Add(row);
             }
 
             // Instancia a imagem
-            PBMImage img = new PBMImage(image_size_xy, matrix);
-            if (_fixImagePixels) NegativeImg(img); // Caso a imagem precise ser invertida para que os pixels pretos sejam igual a 1
+            PBMImage img = new PBMImage(imageSizeXY, matrix);
             return img;
         }
         else
@@ -128,7 +125,7 @@ class ImageLib
         return null;
     }
 
-    private void ExportImg(PBMImage image, string? pathWithName = null) // Salva a imagem em um arquivo. É usado quando o debugMode está ativado.
+    private void ExportImg(PBMImage image, string? path_with_name = null) // Salva a imagem em um arquivo. É usado quando o debugMode está ativado.
     {
         List<string> pbm_image = new List<string>();
         pbm_image.Add("P1");
@@ -138,16 +135,16 @@ class ImageLib
         {
             pbm_image.Add(string.Join(' ', row.ToArray()));
         }
-        if (pathWithName == null)
+        if (path_with_name == null)
         {
             Console.WriteLine("Informe o diretório com o nome do arquivo de saída:");
             Console.WriteLine("Exemplo: C:/Users/gabriel/Desktop/imagem1.pbm");
             String? path = Console.ReadLine();
         }
 
-        if (pathWithName != null && pathWithName.Contains(".pbm"))
+        if (path_with_name != null && path_with_name.Contains(".pbm"))
         {
-            using (StreamWriter sw = new StreamWriter(pathWithName))
+            using (StreamWriter sw = new StreamWriter(path_with_name))
             {
                 foreach (var row in pbm_image) sw.WriteLine(row);
             }
@@ -167,19 +164,19 @@ class ImageLib
         //  em uma lista de objetos, ou seja, uma lista de lista de pontos;
 
         int objects_count = 0;
-        List<List<byte>> visited_matrix = new List<List<byte>>();
+        List<List<byte>> visitedMatrix = new List<List<byte>>();
         List<Point> single_object = new List<Point>();
 
-        for (int i = 0; i < image.GetImageSize().Width; i++)
+        for (int i = 0; i < image.GetImageSize().Height; i++)
         {
-            visited_matrix.Add(Enumerable.Repeat((byte)0, image.GetImageSize().Width).ToList());
+            visitedMatrix.Add(Enumerable.Repeat((byte)0, image.GetImageSize().Width).ToList());
         }
 
         for (int i = 0; i < image.GetImageSize().Width; i++)
         {
             for (int j = 0; j < image.GetImageSize().Height; j++)
             {
-                if (DfsCountObjects(i, j, image, isObject, visited_matrix, single_object))
+                if (DfsCountObjects(i, j, image, isObject, visitedMatrix, single_object))
                 {
                     objects_coords.Add(single_object);
                     objects_count++;
@@ -195,14 +192,14 @@ class ImageLib
     }
 
     // DFS que contabiliza e identifica  os objetos de uma imagem
-    private bool DfsCountObjects(int x, int y, PBMImage image, bool isObject, List<List<byte>> visited_matrix, List<Point> objeto)
+    private bool DfsCountObjects(int x, int y, PBMImage image, bool isObject, List<List<byte>> visitedMatrix, List<Point> objeto)
     {
-        List<Point> object_neighbors = new List<Point>()
+        List<Point> objectNeighbors = new List<Point>()
         {
             new Point(1,0), new Point(-1,0), new Point(0,1), new Point(0, -1), new Point(-1,1), new Point(1,1), new Point(1,-1), new Point(-1,-1)
         };
 
-        List<Point> hole_neighbors = new List<Point>()
+        List<Point> holeNeighbors = new List<Point>()
         {
             new Point(1,0), new Point(-1,0), new Point(0,1), new Point(0, -1)
         };
@@ -211,7 +208,7 @@ class ImageLib
         {
             return false;
         }
-        if (visited_matrix[x][y] == 1) // Pixel já visitado
+        if (visitedMatrix[x][y] == 1) // Pixel já visitado
         {
             return false;
         }
@@ -219,34 +216,139 @@ class ImageLib
         {
             return false;
         }
-        visited_matrix[x][y] = 1;
-        objeto.Add(new Point(x, y));
+        visitedMatrix[x][y] = 1;
+
+        objeto.Add(new Point(x-1, y-1)); // Coordenadas corrigidas, pois são referentes a imagem sem bordas
         if (isObject)
         {
-            foreach (var direction in object_neighbors) // Executa a DFS para cada vizinho possível de um objeto
+            foreach (var direction in objectNeighbors) // Executa a DFS para cada vizinho possível de um objeto
             {
-                DfsCountObjects(x + direction.X, y + direction.Y, image, isObject, visited_matrix, objeto);
+                DfsCountObjects(x + direction.X, y + direction.Y, image, isObject, visitedMatrix, objeto);
             };
         }
         else
         {
-            foreach (var direction in hole_neighbors) // Executa a DFS para cada vizinho possível de um furo
+            foreach (var direction in holeNeighbors) // Executa a DFS para cada vizinho possível de um furo
             {
-                DfsCountObjects(x + direction.X, y + direction.Y, image, isObject, visited_matrix, objeto);
+                DfsCountObjects(x + direction.X, y + direction.Y, image, isObject, visitedMatrix, objeto);
             };
         }
         return true;
     }
 
-    public void CountObjectsAndHoles(PBMImage image) // Método que soluciona o problema proposto no projeto
+    // Efetua o processo reverso da função de adição de borda
+    private PBMImage RemoveBorderImg(PBMImage image)
     {
-        List<List<Point>> valid_object_coords = new List<List<Point>>(); // Armazena os objetos válidos
-        List<List<Point>> filled_objects_coords = new List<List<Point>>(); // Armazena os objetos preenchidos
-        List<List<Point>> holes_coords = new List<List<Point>>(); // Armazena os furos
-        PBMImage holes_image = CloneImage(image);
+        List<List<byte>> outputImageMatrix = new List<List<byte>>();
+        for (int i = 0; i < image.GetImageSize().Height - 2; i++)
+        {
+            outputImageMatrix.Add(Enumerable.Repeat((byte)0, image.GetImageSize().Width - 2).ToList());
+        }
 
-        // Armazena os objetos candidatos (resultantes da diferença entre o obj preenchido com os seus furos)
-        List<List<Point>> candidates_coords = new List<List<Point>>();
+        for (int i = 1; i < image.GetImageSize().Width -1; i++)
+        {
+            for (int j = 1; j < image.GetImageSize().Height-1; j++)
+            {
+                if (image.GetPixel(i, j) == 1) outputImageMatrix[i - 1][j - 1] = image.GetPixel(i, j);
+            }
+        }
+        return new PBMImage((image.GetImageSize().Width - 2, image.GetImageSize().Height - 2), outputImageMatrix);
+    }
+
+    // Adciona uma borda de 1 pixel em toda a imagem, atualizando sua matriz e o seu tamanho
+    private PBMImage AddBorderImg(PBMImage image)
+    {
+        List<List<byte>> outputImageMatrix = new List<List<byte>>();
+        for (int i = 0; i < image.GetImageSize().Height + 2; i++)
+        {
+            outputImageMatrix.Add(Enumerable.Repeat((byte)0, image.GetImageSize().Width + 2).ToList());
+        }
+
+        for (int i = 0; i < image.GetImageSize().Width; i++)
+        {
+            for (int j = 0; j < image.GetImageSize().Height; j++)
+            {
+                if (image.GetPixel(i, j) == 1) outputImageMatrix[i + 1][j + 1] = image.GetPixel(i, j);
+            }
+        }
+        return new PBMImage((image.GetImageSize().Width + 2, image.GetImageSize().Height + 2), outputImageMatrix);
+    }
+
+    // A partir da lista de objetos de uma imagem, retorna uma lista de segmentos (lista de imagens contendo apenas um objeto)
+    private List<PBMImage> GetImageSegments(PBMImage image, List<List<Point>> imageObjects)
+    {
+        List<PBMImage> Segments = new List<PBMImage>(); // Lista de segmentos
+        int segmentsCounter = 0;
+
+        if (_debugMode == true)
+        {
+            Console.WriteLine("Segmentos da imagem de acordo com os objetos encontrados: ");
+            Console.WriteLine("Obs.: os segmentos foram exportados como imagens .PBM.");
+        }
+
+        foreach (var Object in imageObjects)
+        {
+            // Cria uma imagem temporária vazia
+            PBMImage temp = CloneImage(image);
+            temp.SetZeros();
+
+            // Efetua a união da imagem vazia com o segmento
+            foreach (var Pixel in Object) temp.SetPixel(Pixel.X, Pixel.Y, 1);
+            
+            Segments.Add(temp); // Adiciona na lista de retorno da função
+
+            if (_debugMode)
+            {
+                ExportImg(temp, string.Format("./debug_segmento_{0}.pbm", segmentsCounter));
+                temp.PrintImgMatrix();
+                segmentsCounter++;
+            }
+        }
+        return Segments;
+    }
+
+    private bool IsEmptyImage(PBMImage Image) // Verifica se a imagem dada é completamente composta por pixels 0
+    {
+        foreach(var Row in Image.GetImgMatrix())
+        {
+            if (Row.Contains(1)) return false;
+        }
+        return true;
+    }
+
+    // Dado uma lista de segmentos, retorna os que possuem furo
+    private List<PBMImage> GetSegmentsWithHoles(List<PBMImage> imageSegments)
+    {
+        List<PBMImage> Segments = new List<PBMImage>(); // Retorno da função
+        int segmentsCounter = 0;
+
+        if (_debugMode == true)
+        {
+            Console.WriteLine("Segmentos (objetos) que possuem furos: ");
+        }
+
+        foreach (var image in imageSegments)
+        {
+            PBMImage temp = CloneImage(image);
+            FloodFillDfs(temp, new Point(0, 0)); // Preenche todo o fundo da imagem
+            NegativeImg(temp); // Aplica o negativo para obter apenas os furos
+            if (!IsEmptyImage(temp)) // Caso a imagem não seja vazia (completamente preechida pela cor branca)
+            {
+                Segments.Add(RemoveBorderImg(image)); // Adiciona a imagem na lista de retorno
+                if (_debugMode)
+                {
+                    ExportImg(temp, string.Format("./debug_segmento_furado_{0}.pbm", segmentsCounter));
+                    image.PrintImgMatrix();
+                    segmentsCounter++;
+                }
+            }
+        }
+        return Segments;
+    }
+
+    public void GenericStuffSolution(PBMImage image) // Método que soluciona o problema proposto no projeto
+    {
+        List<List<Point>> validObjectCoords = new List<List<Point>>(); // Armazena os objetos válidos
 
         if (_debugMode == true)
         {
@@ -254,74 +356,23 @@ class ImageLib
             image.PrintImgMatrix();
         }
 
-        // Contabiliza os objetos válidos da imagem e os armazena na lista valid_object_coords
-        int valid_objects_count = CountObjectsInImg(image, true, valid_object_coords);
+        PBMImage img = AddBorderImg(CloneImage(image)); // Clona a imagem original e adiciona bordas à ela
+        
+        CountObjectsInImg(img, true, validObjectCoords); // Contabiliza os objetos e os armazena em uma lista
 
+        // A partir da lista de objetos obtida, cria uma lista de imagens com cada uma contendo um objeto
+        // = lista de planos da imagem = lista de segmentos.
+        List<PBMImage> imageSegments = GetImageSegments(img, validObjectCoords);
 
-        FillHoles(image); // Preenche os furos da imagem (sem verificar se os mesmos são válidos)
-        CountObjectsInImg(image, true, filled_objects_coords);
-
-        FloodFillDfs(holes_image);
-        // Processa a imagem original fazendo com que ela contenha apenas os furos 
-        // Contabiliza os furos da imagem e os armazena na lista holes.coords
-        int holes_count = CountObjectsInImg(holes_image, false, holes_coords);
-
-        image.PrintImgMatrix();
-
-        if (_debugMode == true)
-        {
-            Console.WriteLine("Imagem com os furos (inclusive os inválidos) preenchidos:");
-            ExportImg(image, "./debug_imagem_preenchida.pbm");
-            image.PrintImgMatrix();
-        }
-
-        if (_debugMode == true)
-        {
-            Console.WriteLine("Furos (inclusive os inválidos) contidos na imagem:");
-            ExportImg(holes_image, "./debug_imagem_furos.pbm");
-            holes_image.PrintImgMatrix();
-        }
-
-        // Lógica responsável por identificar os buracos válidos e contabilizar quantos:
-        //  objetos válidos possuem furos
-
-        int objects_with_holes_count = 0;
-
-        // Monta uma lista de objetos formados pela diferença entre os objetos preenchidos e os seus furos
-        //  no intuito de comparar esses objetos com os objetos válidos e ver se de fato os furos
-        //  encontrados são válidos (pertencem a um objeto válido).
-        foreach (var single_object in filled_objects_coords) // Objetos preenchidos
-        {
-            List<Point> holesInObject = new List<Point>(); // Lista de furos de um único objeto
-            foreach (var hole in holes_coords) //Furos
-            {
-                if (single_object.Intersect(hole).Count() > 0 && single_object.Count() > 0)
-                { // Verifica se o furo atual pertence a um objeto
-                    holesInObject.AddRange(hole); // Se sim, o adiciona na lista de furos deste objeto
-                }
-            }
-            // single_object.Count() > 3: objeto que pode conter um furo
-            if (single_object.Count() > 3 && holesInObject.Count() > 0)
-                // adiciona na lista de candidatos apenas os pixels que não pertencem à interseção
-                //  = adicionar o resultado da subtração: objeto preenchido - seus furos
-                candidates_coords.Add(single_object.FindAll(x => !holesInObject.Contains(x)));
-        }
-
-        // Efetua a verificação citada anteriormente.
-        foreach (var valid_object in valid_object_coords)
-        {
-            foreach (var candidate in candidates_coords)
-            {
-                if (valid_object.Intersect(candidate).Count() > 0 // Se existe interseção
-                    && valid_object.Count() == candidate.Count() // Se o obj candidato possui a mesma quantidade de pixels que o obj válido
-                    && valid_object.Count() > 3)                // Se o objeto válido pode conter furo
-                {
-                    objects_with_holes_count++; // Se sim, contabiliza o objeto que possui furo
-                }
-            }
-        }
-        Console.WriteLine("OBJETOS NA IMAGEM: " + valid_objects_count);
-        Console.WriteLine("OBJETOS COM FUROS: " + objects_with_holes_count);
+        // A partir da lista de segmentos, verifica quais possuem furo e os retorna em uma nova lista
+        List<PBMImage> segmentsWithHoles = GetSegmentsWithHoles(imageSegments);
+        
+        // A quantidade de segmentos em cada uma das listas representa a quantidade de objetos
+        //  logo, basta printar os lengths das listas
+        Console.WriteLine("Total de objetos na imagem: " + imageSegments.Count());
+        Console.WriteLine("Total de objetos com pelo menos um furo: " + segmentsWithHoles.Count());
+        
+        img = RemoveBorderImg(img);
     }
 
     public void NegativeImg(PBMImage image) // Operação pontual: Negativo
@@ -336,100 +387,50 @@ class ImageLib
         }
     }
 
-    private Point GetStarterPointFloodFill(PBMImage image)
-    {
-        // Este método é responsável por decidir o melhor ponto de partida para o algoritmo de Flood Fill.
-
-        // Parte-se da ideia de que o fundo da imagem possui a maior quantidade de pixels, sendo assim, o melhor
-        //	ponto de partida para o algoritmo é aquele que pertence ao fundo.
-
-        List<List<Point>> background_coords = new List<List<Point>>();
-        List<Point> bigger_part_background = new List<Point>();
-        CountObjectsInImg(image, false, background_coords);
-        Random rand_point_index = new Random();
-
-        foreach (var background_part in background_coords)
-        {
-            if (background_part.Count() > bigger_part_background.Count()) bigger_part_background = background_part;
-        }
-
-        return bigger_part_background[rand_point_index.Next(bigger_part_background.Count() - 1)];
-
-    }
-
-    private void FloodFillDfs(PBMImage image) // Algoritmo de flood filling baseado em uma DFS
+    private void FloodFillDfs(PBMImage image, Point starterPoint) // Algoritmo de flood filling baseado em uma DFS
     {
         Stack<Point> pixels = new Stack<Point>();
-        NegativeImg(image);
-        ExportImg(image, "./result.pbm");
-        Point starterPoint = GetStarterPointFloodFill(image);
         pixels.Push(starterPoint);
+
         while (pixels.Count > 0)
         {
-            Point a = pixels.Pop();
-            if (a.X < image.GetImageSize().Width && a.X >= 0 &&
-                    a.Y < image.GetImageSize().Height && a.Y >= 0)
+            Point temp = pixels.Pop();
+            if (temp.X < image.GetImageSize().Width && temp.X >= 0 &&
+                    temp.Y < image.GetImageSize().Height && temp.Y >= 0)
             {
 
-                if (image.GetPixel(a.X, a.Y) == 1)
+                if (image.GetPixel(temp.X, temp.Y) == 0)
                 {
-                    image.SetPixel(a.X, a.Y, 0);
-                    pixels.Push(new Point(a.X - 1, a.Y));
-                    pixels.Push(new Point(a.X + 1, a.Y));
-                    pixels.Push(new Point(a.X, a.Y - 1));
-                    pixels.Push(new Point(a.X, a.Y + 1));
+                    image.SetPixel(temp.X, temp.Y, 1);
+                    pixels.Push(new Point(temp.X - 1, temp.Y));
+                    pixels.Push(new Point(temp.X + 1, temp.Y));
+                    pixels.Push(new Point(temp.X, temp.Y - 1));
+                    pixels.Push(new Point(temp.X, temp.Y + 1));
                 }
             }
         }
-        image.PrintImgMatrix();
     }
 
     public PBMImage CloneImage(PBMImage image) // Método para efetuar uma deep copy na imagem
     {
         return new PBMImage(image.GetImageSize(), image.GetImgMatrix().ConvertAll(x => new List<byte>(x)));
     }
-
-    public void CombineImages(PBMImage image1, PBMImage image2) // Faz a união de duas imagens
-    {
-        if (image1.GetImageSize() == image2.GetImageSize())
-        {
-            for (int i = 0; i < image1.GetImageSize().Width; i++)
-            {
-                for (int j = 0; j < image1.GetImageSize().Height; j++)
-                {
-                    if (image2.GetPixel(i, j) == 1) image1.SetPixel(i, j, 1);
-                }
-            }
-        }
-        else
-        {
-            throw new Exception("As imagens possuem tamanho diferente.");
-        }
-    }
-
-    public void FillHoles(PBMImage image) // Preenche os furos de uma imagem
-    {
-        PBMImage img2 = CloneImage(image);
-        FloodFillDfs(img2);
-        CombineImages(image, img2);
-    }
     #endregion
-
 }
 
 
 class PBMImage
 {
     #region Attributes
-    private (int x, int y) _img_size;
-    private List<List<byte>> _img_matrix;
+    private (int x, int y) imageSize;
+    private List<List<byte>> imgMatrix;
     #endregion
 
     #region Methods
     public PBMImage((int, int) size, List<List<byte>> matrix)
     {
-        _img_size = size;
-        _img_matrix = matrix;
+        imageSize = size;
+        imgMatrix = matrix;
     }
 
     public void PrintImgMatrix()
@@ -439,27 +440,34 @@ class PBMImage
             for (int j = 0; j < GetImageSize().Height; j++) Console.Write(GetPixel(i, j) + " ");
             Console.WriteLine("");
         }
-        Console.WriteLine("");
+        Console.WriteLine();
     }
 
     public (int Width, int Height) GetImageSize()
     {
-        return _img_size;
+        return imageSize;
     }
 
     public List<List<byte>> GetImgMatrix()
     {
-        return _img_matrix;
+        return imgMatrix;
     }
 
     public void SetPixel(int x, int y, byte color)
     {
-        _img_matrix[x][y] = color;
+        imgMatrix[x][y] = color;
     }
 
     public byte GetPixel(int x, int y)
     {
-        return _img_matrix[x][y];
+        return imgMatrix[x][y];
+    }
+
+    public void SetZeros()
+    {
+        for (int i = 0; i < this.GetImageSize().Width; i++)
+            for (int j = 0; j < this.GetImageSize().Height; j++)
+                this.SetPixel(i, j, 0);
     }
     #endregion
 }
